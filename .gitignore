@@ -1,0 +1,16 @@
+# Personal / machine-specific — copy the .example.* templates and edit them.
+channels.json
+playlists.json
+Start My Feed.vbs
+watchdog.vbs
+
+# Runtime log (regenerated on every run)
+server.log
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS cruft
+.DS_Store
+Thumbs.db

@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Feed</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #14141c;
+    --surface-2: #191922;
+    --surface-hover: #20202b;
+    --card: var(--surface);          /* legacy aliases */
+    --card-hover: var(--surface-hover);
+    --text: #f4f4f8;
+    --muted: #9a9aab;
+    --faint: #6b6b78;
+    --pink: #E91E8C;
+    --pink-2: #ff46a8;
+    --pink-soft: rgba(233,30,140,.14);
+    --green: #0ACF83;
+    --border: rgba(255,255,255,.08);
+    --border-strong: rgba(255,255,255,.14);
+    --radius: 14px;
+    --shadow-lift: 0 18px 44px -14px rgba(0,0,0,.75);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, "Segoe UI", sans-serif;
+    font-size: 15px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    min-height: 100vh;
+    padding-bottom: 96px; /* room for the floating music bar */
+  }
+  /* soft ambient glow behind everything */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(58vw 48vh at 10% -8%, rgba(233,30,140,.10), transparent 60%),
+      radial-gradient(52vw 42vh at 102% -2%, rgba(10,207,131,.07), transparent 55%);
+  }
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(10,10,15,.70);
+    backdrop-filter: blur(18px) saturate(1.4);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+  }
+  header h1 {
+    font-size: 17px; font-weight: 800; letter-spacing: 1.5px;
+    background: linear-gradient(100deg, var(--pink), var(--green));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    margin-right: 6px; white-space: nowrap;
+  }
+  #tabs {
+    display: flex; gap: 2px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 12px; padding: 4px;
+  }
+  #tabs button {
+    border: none; background: none; color: var(--muted); cursor: pointer;
+    padding: 6px 18px; border-radius: 9px; font-size: 13.5px; font-weight: 600;
+    transition: color .15s, background .15s, box-shadow .15s;
+  }
+  #tabs button:hover { color: var(--text); }
+  #tabs button.active {
+    background: linear-gradient(135deg, var(--pink), var(--pink-2)); color: #fff;
+    box-shadow: 0 5px 16px -5px rgba(233,30,140,.65);
+  }
+  #addForm { display: flex; gap: 8px; flex: 1; min-width: 240px; max-width: 480px; }
+  #addInput {
+    flex: 1; padding: 9px 16px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    outline: none; font-size: 14px; transition: border-color .15s, box-shadow .15s;
+  }
+  #addInput::placeholder { color: var(--faint); }
+  #addInput:focus { border-color: var(--pink); box-shadow: 0 0 0 3px var(--pink-soft); }
+  #addBtn {
+    padding: 9px 20px; border-radius: 10px; border: none; cursor: pointer;
+    background: linear-gradient(135deg, var(--pink), var(--pink-2)); color: #fff;
+    font-weight: 600; font-size: 14px; transition: filter .15s, transform .1s;
+  }
+  #addBtn:hover { filter: brightness(1.08); }
+  #addBtn:active { transform: translateY(1px); }
+  #addBtn:disabled { opacity: .5; cursor: wait; }
+  #status { color: var(--muted); font-size: 13px; }
+  #status.err { color: #ff6b81; }
+
+  #chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 18px 24px 0; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--muted); font-size: 13px; font-weight: 500; user-select: none;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .chip:hover { border-color: var(--border-strong); color: var(--text); }
+  .chip.active {
+    color: var(--green); background: rgba(10,207,131,.12);
+    box-shadow: inset 0 0 0 1px rgba(10,207,131,.45); border-color: transparent;
+  }
+  .chip .x { color: var(--faint); font-weight: 700; padding: 0 2px; }
+  .chip .x:hover { color: #ff6b81; }
+
+  #grid {
+    display: grid; gap: 22px; padding: 22px 24px 40px;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; cursor: pointer;
+  }
+  .card.watched { opacity: .4; }
+  .thumb { position: relative; aspect-ratio: 16/9; background: #000; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb .len {
+    position: absolute; right: 8px; bottom: 8px;
+    background: rgba(0,0,0,.82); color: #fff; font-size: 11.5px; font-weight: 600;
+    padding: 2px 7px; border-radius: 6px; backdrop-filter: blur(2px);
+  }
+  .meta { padding: 13px 15px 15px; }
+  .meta .title {
+    font-weight: 600; font-size: 14.5px; line-height: 1.38; letter-spacing: -.1px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .meta .sub { margin-top: 7px; color: var(--muted); font-size: 12.5px; }
+  .meta .sub .ch { color: var(--green); font-weight: 600; }
+
+  /* Music list — audio only, no thumbnails */
+  #musicList { padding: 16px 24px 40px; max-width: 920px; }
+  .track {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 16px; border-radius: 12px; cursor: pointer;
+    border: 1px solid transparent; transition: background .15s;
+  }
+  .track:hover { background: var(--surface); }
+  .track.playing { background: var(--surface); box-shadow: inset 3px 0 0 var(--pink); }
+  .track .note { color: var(--faint); width: 18px; text-align: center; flex: none; }
+  .track.playing .note { color: var(--pink); }
+  .track .t-title {
+    flex: 1; font-weight: 600; font-size: 14.5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .track .t-sub { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+  .track .t-sub .ch { color: var(--green); }
+
+  #empty { padding: 72px 24px; text-align: center; color: var(--muted); }
+  #empty b { color: var(--text); font-size: 17px; }
+
+  /* Floating music player bar */
+  #musicBar {
+    display: none; position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 50;
+    background: rgba(18,18,26,.80); backdrop-filter: blur(20px) saturate(1.5);
+    -webkit-backdrop-filter: blur(20px) saturate(1.5);
+    border: 1px solid var(--border-strong); border-radius: 16px;
+    box-shadow: 0 16px 40px -16px rgba(0,0,0,.8);
+    padding: 11px 16px; align-items: center; gap: 14px;
+    max-width: 1100px; margin: 0 auto;
+  }
+  #musicBar.on { display: flex; }
+  #musicBar button {
+    background: rgba(255,255,255,.05); border: 1px solid var(--border); color: var(--text);
+    border-radius: 999px; cursor: pointer; font-size: 15px;
+    width: 40px; height: 40px; flex: none; display: grid; place-items: center;
+    transition: border-color .15s, background .15s;
+  }
+  #musicBar button:hover { border-color: var(--pink); background: var(--pink-soft); }
+  #mbPlay {
+    background: linear-gradient(135deg, var(--pink), var(--pink-2)); border: none; font-size: 16px;
+    box-shadow: 0 5px 16px -5px rgba(233,30,140,.65);
+  }
+  #mbPlay:hover { filter: brightness(1.08); background: linear-gradient(135deg, var(--pink), var(--pink-2)); }
+  #mbInfo { flex: 1; min-width: 0; }
+  #mbTitle {
+    font-weight: 600; font-size: 14px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #mbSub { color: var(--muted); font-size: 12px; }
+  #mbSub .ch { color: var(--green); }
+
+  /* The YouTube iframe lives here: audio plays, nothing is visible */
+  #ytHolder {
+    position: fixed; bottom: 0; right: 0; width: 2px; height: 2px;
+    opacity: 0; pointer-events: none; overflow: hidden;
+  }
+
+  /* Video player modal */
+  #modal {
+    display: none; position: fixed; inset: 0; z-index: 100; padding: 20px;
+    background: rgba(0,0,0,.78); backdrop-filter: blur(6px);
+    align-items: center; justify-content: center;
+  }
+  #modal.open { display: flex; }
+  #playerBox { width: min(1100px, 94vw); }
+  #playerBox .frame {
+    aspect-ratio: 16/9; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 0 0 1px var(--border-strong), 0 30px 80px -24px rgba(233,30,140,.35);
+  }
+  #playerBox iframe, #playerBox #videoPlayer { width: 100%; height: 100%; border: 0; }
+  #playerBar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 6px 2px; color: var(--muted); font-size: 13px; gap: 12px;
+  }
+  #playerTitle { font-weight: 600; color: var(--text); }
+  #playerBar a { color: var(--green); text-decoration: none; font-weight: 600; }
+  #playerBar a:hover { text-decoration: underline; }
+  #closeBtn {
+    background: rgba(255,255,255,.05); border: 1px solid var(--border); color: var(--text);
+    border-radius: 9px; padding: 7px 16px; cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  #closeBtn:hover { border-color: var(--pink); background: var(--pink-soft); }
+</style>
+</head>
+<body>
+<header>
+  <h1>MY FEED</h1>
+  <nav id="tabs">
+    <button data-sec="videos">Videos</button>
+    <button data-sec="music">♪ Music</button>
+  </nav>
+  <form id="addForm">
+    <input id="addInput" placeholder="Add a channel: @handle or any YouTube URL" autocomplete="off">
+    <button id="addBtn" type="submit">Add</button>
+  </form>
+  <span id="status"></span>
+</header>
+
+<div id="chips"></div>
+<div id="grid"></div>
+<div id="musicList" hidden></div>
+<div id="empty" hidden>
+  <p style="font-size:40px">📺</p>
+  <p><b>Nothing here yet.</b></p>
+  <p>Paste a channel handle (like <b>@veritasium</b>) or any YouTube URL above.</p>
+</div>
+
+<div id="musicBar">
+  <button id="mbPrev" title="Previous">⏮</button>
+  <button id="mbPlay" title="Play/Pause">⏸</button>
+  <button id="mbNext" title="Next">⏭</button>
+  <div id="mbInfo">
+    <div id="mbTitle"></div>
+    <div id="mbSub"></div>
+  </div>
+  <button id="mbStop" title="Stop">✕</button>
+</div>
+<div id="ytHolder"><div id="ytAudio"></div></div>
+
+<div id="modal">
+  <div id="playerBox">
+    <div class="frame"><div id="videoPlayer"></div></div>
+    <div id="playerBar">
+      <span id="playerTitle"></span>
+      <span style="display:flex;gap:12px;align-items:center">
+        <a id="ytLink" target="_blank" rel="noopener">Open on YouTube ↗</a>
+        <button id="closeBtn">Close (Esc)</button>
+      </span>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let channels = [];          // all channels, each with .group ("video" | "music")
+let videos = [];            // video-section items, merged + sorted
+let tracks = [];            // music-section items, merged + sorted
+// Landing tab is Videos; "home" is a legacy value from the removed Course tab.
+const storedSection = localStorage.getItem("section");
+let section = (storedSection === "videos" || storedSection === "music") ? storedSection : "videos";
+let activeChannel = null;   // chip filter (per current section)
+const watched = new Set(JSON.parse(localStorage.getItem("watched") || "[]"));
+
+function saveWatched() {
+  localStorage.setItem("watched", JSON.stringify([...watched].slice(-2000)));
+}
+const groupOf = c => c.group === "music" ? "music" : "video";
+
+async function loadChannels() {
+  channels = await (await fetch("/api/channels")).json();
+}
+
+async function fetchFeed(ch, all) {
+  try {
+    // A playlist entry pulls its tracks from the playlist endpoint; a channel
+    // entry pulls recent uploads from the feed endpoint.
+    const url = ch.type === "playlist"
+      ? `/api/playlist?id=${ch.id}`
+      : `/api/feed?id=${ch.id}${all ? "&all=1" : ""}`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    const list = ch.type === "playlist" ? (data.videos || []) : data;
+    return list.map(v => ({ ...v, channelId: ch.id, channelTitle: ch.title }));
+  } catch { return []; }
+}
+
+// Fetch feeds a few at a time instead of all at once, so we don't hit
+// YouTube with a big simultaneous burst (which looks bot-like).
+async function fetchAll(jobs, concurrency = 3) {
+  const results = [];
+  let i = 0;
+  async function worker() {
+    while (i < jobs.length) {
+      const idx = i++;
+      results[idx] = await jobs[idx]();
+    }
+  }
+  await Promise.all(Array.from({ length: concurrency }, worker));
+  return results;
+}
+
+async function refresh() {
+  const vids = channels.filter(c => groupOf(c) === "video");
+  const mus = channels.filter(c => groupOf(c) === "music");
+  $("#status").textContent = channels.length ? "Loading…" : "";
+  const jobs = [
+    ...vids.map(c => () => fetchFeed(c, false).then(r => ["v", r])),
+    ...mus.map(c => () => fetchFeed(c, true).then(r => ["m", r])),
+  ];
+  const out = await fetchAll(jobs, 3);
+  const byDate = (a, b) => new Date(b.publishedISO || 0) - new Date(a.publishedISO || 0);
+  videos = out.filter(x => x[0] === "v").flatMap(x => x[1]).sort(byDate);
+  tracks = out.filter(x => x[0] === "m").flatMap(x => x[1]).sort(byDate);
+  $("#status").textContent = "";
+  render();
+}
+
+function render() {
+  document.querySelectorAll("#tabs button").forEach(b =>
+    b.classList.toggle("active", b.dataset.sec === section));
+
+  $("#grid").style.display = section === "videos" ? "" : "none";
+  $("#musicList").hidden = section !== "music";
+
+  $("#addInput").placeholder = section === "music"
+    ? "Add music: a YouTube Music playlist link, or a channel @handle"
+    : "Add a channel: @handle or any YouTube URL";
+
+  const secChannels = channels.filter(c => groupOf(c) === (section === "music" ? "music" : "video"));
+  const chips = $("#chips");
+  chips.innerHTML = "";
+  if (secChannels.length > 1) {
+    const all = document.createElement("span");
+    all.className = "chip" + (activeChannel === null ? " active" : "");
+    all.textContent = "All";
+    all.onclick = () => { activeChannel = null; render(); };
+    chips.appendChild(all);
+  }
+  for (const ch of secChannels) {
+    const c = document.createElement("span");
+    c.className = "chip" + (activeChannel === ch.id ? " active" : "");
+    c.innerHTML = `<span>${ch.title}</span><span class="x" title="Remove channel">✕</span>`;
+    c.querySelector("span").onclick = () => { activeChannel = activeChannel === ch.id ? null : ch.id; render(); };
+    c.querySelector(".x").onclick = async (ev) => {
+      ev.stopPropagation();
+      if (!confirm(`Remove "${ch.title}"?`)) return;
+      await fetch("/api/channels?id=" + ch.id, { method: "DELETE" });
+      if (activeChannel === ch.id) activeChannel = null;
+      await loadChannels(); refresh();
+    };
+    chips.appendChild(c);
+  }
+
+  $("#empty").hidden = secChannels.length > 0;
+  if (section === "videos") renderVideos();
+  else renderMusic();
+}
+
+function renderVideos() {
+  const grid = $("#grid");
+  grid.innerHTML = "";
+  const shown = videos.filter(v => !activeChannel || v.channelId === activeChannel);
+  for (const v of shown) {
+    const card = document.createElement("div");
+    card.className = "card" + (watched.has(v.id) ? " watched" : "");
+    const subBits = [v.publishedText, v.viewsText ? v.viewsText + " views" : ""].filter(Boolean).join(" · ");
+    card.innerHTML = `
+      <div class="thumb">
+        <img loading="lazy" src="${v.thumb || `https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`}" alt="">
+        ${v.length ? `<span class="len">${v.length}</span>` : ""}
+      </div>
+      <div class="meta">
+        <div class="title"></div>
+        <div class="sub"><span class="ch"></span>${subBits ? " · " + subBits : ""}</div>
+      </div>`;
+    card.querySelector(".title").textContent = v.title;
+    card.querySelector(".ch").textContent = v.channelTitle;
+    card.onclick = () => play(v, card);
+    grid.appendChild(card);
+  }
+}
+
+function renderMusic() {
+  const list = $("#musicList");
+  list.innerHTML = "";
+  const shown = tracks.filter(v => !activeChannel || v.channelId === activeChannel);
+  shown.forEach((v, i) => {
+    const row = document.createElement("div");
+    row.className = "track" + (nowPlayingId === v.id ? " playing" : "");
+    row.innerHTML = `
+      <span class="note">${nowPlayingId === v.id ? "♪" : "▸"}</span>
+      <span class="t-title"></span>
+      <span class="t-sub"><span class="ch"></span>${v.length ? " · " + v.length : ""}${v.publishedText ? " · " + v.publishedText : ""}</span>`;
+    row.querySelector(".t-title").textContent = v.title;
+    row.querySelector(".ch").textContent = v.channelTitle;
+    row.onclick = () => playTrack(shown, i);
+    list.appendChild(row);
+  });
+}
+
+/* ---------- music player (hidden YouTube iframe, audio only) ---------- */
+let ytApiPromise = null, player = null, queue = [], qi = -1, nowPlayingId = null;
+
+function loadYTApi() {
+  if (ytApiPromise) return ytApiPromise;
+  ytApiPromise = new Promise(res => {
+    window.onYouTubeIframeAPIReady = res;
+    const s = document.createElement("script");
+    s.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(s);
+  });
+  return ytApiPromise;
+}
+
+let playerReady = null;
+async function ensurePlayer() {
+  await loadYTApi();
+  if (!playerReady) {
+    playerReady = new Promise(res => {
+      player = new YT.Player("ytAudio", {
+        width: "2", height: "2",
+        host: "https://www.youtube.com",
+        playerVars: { rel: 0, origin: location.origin },
+        events: {
+          onReady: res,
+          onStateChange: e => {
+            $("#mbPlay").textContent = e.data === YT.PlayerState.PLAYING ? "⏸" : "▶";
+            if (e.data === YT.PlayerState.ENDED) nextTrack();
+          },
+          onError: () => nextTrack(),  // embed-blocked track: skip it
+        },
+      });
+    });
+  }
+  await playerReady;
+}
+
+// The video modal uses the SAME IFrame-API player mechanism as music, because
+// ad-block/privacy extensions that block a plain <iframe> embed generally let
+// the API player through (music proves it works; a plain video iframe didn't).
+// A shared readiness promise avoids a race where a rapid second click calls
+// loadVideoById() before the player has finished initializing.
+let videoPlayer = null, videoPlayerReady = null;
+async function ensureVideoPlayer() {
+  await loadYTApi();
+  if (!videoPlayerReady) {
+    videoPlayerReady = new Promise(res => {
+      videoPlayer = new YT.Player("videoPlayer", {
+        width: "100%", height: "100%",
+        host: "https://www.youtube.com",
+        playerVars: { rel: 0, autoplay: 1, origin: location.origin },
+        events: { onReady: res },
+      });
+    });
+  }
+  await videoPlayerReady;  // subsequent calls wait for the same init
+}
+
+async function playTrack(list, i) {
+  queue = list; qi = i;
+  const t = queue[qi];
+  nowPlayingId = t.id;
+  if (videoPlayer && videoPlayer.getPlayerState && videoPlayer.getPlayerState() === 1)
+    videoPlayer.pauseVideo();  // don't overlap a modal video
+  await ensurePlayer();
+  player.loadVideoById(t.id);
+  player.playVideo();
+  $("#mbTitle").textContent = t.title;
+  $("#mbSub").innerHTML = `<span class="ch"></span>${t.length ? " · " + t.length : ""}`;
+  $("#mbSub .ch").textContent = t.channelTitle;
+  $("#musicBar").classList.add("on");
+  if (section === "music") renderMusic();
+}
+
+function nextTrack() { if (qi < queue.length - 1) playTrack(queue, qi + 1); else stopMusic(); }
+function prevTrack() { if (qi > 0) playTrack(queue, qi - 1); }
+
+function stopMusic() {
+  if (player) player.stopVideo();
+  nowPlayingId = null; qi = -1;
+  $("#musicBar").classList.remove("on");
+  if (section === "music") renderMusic();
+}
+
+$("#mbPlay").onclick = () => {
+  if (!player) return;
+  player.getPlayerState() === 1 ? player.pauseVideo() : player.playVideo();
+};
+$("#mbNext").onclick = nextTrack;
+$("#mbPrev").onclick = prevTrack;
+$("#mbStop").onclick = stopMusic;
+
+/* ---------- video modal ---------- */
+async function play(v, card) {
+  if (player && player.getPlayerState && player.getPlayerState() === 1)
+    player.pauseVideo();  // don't talk over the music
+  watched.add(v.id); saveWatched();
+  card?.classList.add("watched");
+  $("#playerTitle").textContent = v.title;
+  $("#ytLink").href = `https://www.youtube.com/watch?v=${v.id}`;
+  $("#modal").classList.add("open");
+  await ensureVideoPlayer();
+  videoPlayer.loadVideoById(v.id);
+  videoPlayer.playVideo();
+}
+
+function closePlayer() {
+  $("#modal").classList.remove("open");
+  if (videoPlayer && videoPlayer.stopVideo) videoPlayer.stopVideo();
+}
+$("#closeBtn").onclick = closePlayer;
+$("#modal").onclick = (e) => { if (e.target === $("#modal")) closePlayer(); };
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePlayer(); });
+
+/* ---------- tabs & add form ---------- */
+document.querySelectorAll("#tabs button").forEach(b => {
+  b.onclick = () => {
+    section = b.dataset.sec;
+    localStorage.setItem("section", section);
+    activeChannel = null;
+    render();
+  };
+});
+
+$("#addForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const input = $("#addInput").value.trim();
+  if (!input) return;
+  $("#addBtn").disabled = true;
+  $("#status").className = ""; $("#status").textContent = "Finding channel…";
+  const res = await fetch("/api/channels", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ input, group: section === "music" ? "music" : "video" }),
+  });
+  const data = await res.json();
+  $("#addBtn").disabled = false;
+  if (!res.ok) {
+    $("#status").className = "err";
+    // 409 = channel-limit reached; show the server's explanation verbatim
+    $("#status").textContent = res.status === 409 && data.error
+      ? data.error
+      : "Couldn't add that — try the full channel URL.";
+    return;
+  }
+  $("#addInput").value = "";
+  $("#status").textContent = "Added " + data.title;
+  await loadChannels();
+  refresh();
+};
+
+(async () => { await loadChannels(); refresh(); })();
+
+// Keep an open tab current: refetch every 30 min, and when the tab regains
+// focus (throttled so quick tab-switching doesn't hammer the server).
+let lastRefresh = Date.now();
+async function refreshIfStale(minAge) {
+  if (Date.now() - lastRefresh < minAge) return;
+  lastRefresh = Date.now();
+  await loadChannels();
+  refresh();
+}
+setInterval(() => refreshIfStale(29 * 60 * 1000), 30 * 60 * 1000);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) refreshIfStale(2 * 60 * 1000);
+});
+</script>
+</body>
+</html>
